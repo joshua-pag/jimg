@@ -9,7 +9,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
+// disable unwanted file formats for smaller stbi footprint
+#define STBI_NO_PSD
+#define STBI_NO_HDR
+#define STBI_NO_PIC
+#define STBI_NO_TGA
 #define STB_IMAGE_IMPLEMENTATION
 #include "include/stb_image.h"
 
