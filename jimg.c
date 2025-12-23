@@ -1,6 +1,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_init.h>
+#include <SDL3/SDL_keycode.h>
+#include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_oldnames.h>
 #include <SDL3/SDL_pixels.h>
 #include <SDL3/SDL_rect.h>
@@ -75,18 +77,32 @@ int main(int argc, char** argv) {
 
   if(pixelformat == SDL_PIXELFORMAT_UNKNOWN) {
     printf("Pixelformat could not be interpreted.\n");
-    
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     return -1;
   }
+
+  SDL_Cursor* cursor_default = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_DEFAULT);
+  SDL_Cursor* cursor_movement = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_MOVE);
+
+  if(cursor_movement == 0 || cursor_default == 0) {
+    printf("Cursors could not be created\n");
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+  }
+
+
   SDL_Texture* texture = SDL_CreateTexture(renderer, pixelformat, SDL_TEXTUREACCESS_STATIC, x, y);
   SDL_UpdateTexture(texture, NULL, data, channels * x);
 
-
   float image_ratio = (float) x / (float) y;
-  
+  float scale_factor = 1.0f;
+  int capture_movement = 0;
+  float xoffset = 0.0f;
+  float yoffset = 0.0f;
+
   int shouldQuit = 0;
 
   SDL_Event event;
@@ -102,6 +118,42 @@ int main(int argc, char** argv) {
           window_width = w;
           window_height = h;
           break;
+        case SDL_EVENT_MOUSE_WHEEL:
+          if(event.wheel.y > 0) {
+            // zoom in
+            scale_factor = scale_factor * (1.08f * event.wheel.y);
+            printf("mouse wheel %f\n", event.wheel.y);
+          } else if(event.wheel.y < 0) {
+            // zoom out
+            scale_factor = scale_factor / (-1.08f * event.wheel.y);
+          }
+          break;
+        case SDL_EVENT_KEY_DOWN:
+          // reset all scrolling and panning
+          if(event.key.key == SDLK_SPACE) {
+            scale_factor = 1;
+            xoffset = 0.0f;
+            yoffset = 0.0f;
+          }
+          break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+          if(event.button.button == SDL_BUTTON_LEFT) {
+            capture_movement = 1;
+            SDL_SetCursor(cursor_movement);
+          }
+          break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+          if(event.button.button == SDL_BUTTON_LEFT) {
+            capture_movement = 0;
+            SDL_SetCursor(cursor_default);
+          }
+          break;
+        case SDL_EVENT_MOUSE_MOTION:
+          if(capture_movement) {
+            xoffset += event.motion.xrel;
+            yoffset += event.motion.yrel;
+          }
+          break;
       }
     }
 
@@ -113,10 +165,10 @@ int main(int argc, char** argv) {
     SDL_FRect rendering_rect;
 
 
-    rendering_rect.w = window_width;
-    rendering_rect.x = 0;
+    rendering_rect.w = window_width * scale_factor;
+    rendering_rect.x = (window_width / 2.0f) - (rendering_rect.w / 2.0f) + xoffset;
     rendering_rect.h = (float) rendering_rect.w / image_ratio;
-    rendering_rect.y = (float) window_height / 2.0f - rendering_rect.h / 2.0f;
+    rendering_rect.y = (float) (window_height) / 2.0f - rendering_rect.h / 2.0f + yoffset;
 
     SDL_RenderTexture(renderer, texture, NULL, &rendering_rect);
 
